@@ -6,7 +6,7 @@ class SupabaseManager {
     this.enabled = !!(process.env.SUPABASE_PASSWORD);
     this.client = null;
     
-    const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+    const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
     const password = process.env.SUPABASE_PASSWORD;
     const host = url ? new URL(url).hostname : 'db.wjxqzleqvzblifivyqve.supabase.co';
 
