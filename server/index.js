@@ -62,6 +62,23 @@ app.post('/api/chat', async (req, res) => {
       console.log("Orchestrator update:", update);
     });
 
+    // Generate title if it's a new or untitled conversation
+    try {
+      if (currentConversationId) {
+        const messages = await SupabaseManager.getMessages(currentConversationId);
+        if (messages.length <= 2) { // User msg + system/initial
+           const titleRes = await orchestrator.coordinator.processMessage(`
+             The user just started a project with this message: "${message}"
+             Generate a short, catchy 3-4 word title for this session. 
+             Output ONLY the title string, no quotes or surrounding text.
+           `, () => {});
+           await SupabaseManager.updateConversationTitle(currentConversationId, titleRes.trim());
+        }
+      }
+    } catch (err) {
+      console.error("[TitleGen] Failed to generate title:", err.message);
+    }
+
     // Log assistant response to Supabase
     if (currentConversationId) {
       await SupabaseManager.saveMessage(currentConversationId, 'assistant', response, 'CYAN');
@@ -112,6 +129,35 @@ app.post('/api/write', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// List conversations
+app.get('/api/conversations', async (req, res) => {
+  try {
+    const list = await SupabaseManager.listConversations();
+    res.json(list);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get conversation details (Messages + Tasks)
+app.get('/api/conversations/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const messages = await SupabaseManager.getMessages(id);
+    const tasks = await SupabaseManager.getAgentTasks(id);
+    res.json({ messages, tasks });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Set active conversation
+app.post('/api/conversations/active', async (req, res) => {
+  const { id } = req.body;
+  currentConversationId = id;
+  res.json({ success: true, activeId: currentConversationId });
 });
 
 // Execute terminal command

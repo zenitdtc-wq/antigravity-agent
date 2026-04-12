@@ -6,17 +6,21 @@ class SupabaseManager {
     this.enabled = !!(process.env.SUPABASE_PASSWORD);
     this.client = null;
     
-    if (this.enabled) {
+    const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+    const password = process.env.SUPABASE_PASSWORD;
+    const host = url ? new URL(url).hostname : 'db.wjxqzleqvzblifivyqve.supabase.co';
+
+    if (this.enabled && password) {
       this.client = new Client({
         user: 'postgres',
-        host: 'db.wjxqzleqvzblifivyqve.supabase.co',
+        host: host,
         database: 'postgres',
-        password: process.env.SUPABASE_PASSWORD,
+        password: password,
         port: 5432,
       });
       this.initConnection();
     } else {
-      console.warn("[SupabaseManager] Warning: No Supabase password found. Persistence disabled.");
+      console.warn("[SupabaseManager] Warning: No Supabase credentials or password found. Persistence limited.");
     }
   }
 
@@ -70,6 +74,64 @@ class SupabaseManager {
     if (!this.enabled || !taskId) return;
     const query = 'UPDATE agent_tasks SET status = $1, result = $2 WHERE id = $3';
     await this.client.query(query, [status, result, taskId]);
+  }
+
+  async listConversations() {
+    if (!this.enabled) return [];
+    try {
+      const query = 'SELECT * FROM conversations ORDER BY created_at DESC LIMIT 50';
+      const res = await this.client.query(query);
+      return res.rows;
+    } catch (err) {
+      console.error("[SupabaseManager] Failed to list conversations:", err.message);
+      return [];
+    }
+  }
+
+  async getMessages(conversationId) {
+    if (!this.enabled) return [];
+    try {
+      const query = 'SELECT * FROM messages WHERE conversation_id = $1 ORDER BY created_at ASC';
+      const res = await this.client.query(query, [conversationId]);
+      return res.rows;
+    } catch (err) {
+      console.error("[SupabaseManager] Failed to fetch messages:", err.message);
+      return [];
+    }
+  }
+
+  async getAgentTasks(conversationId) {
+    if (!this.enabled) return [];
+    try {
+      const query = 'SELECT * FROM agent_tasks WHERE conversation_id = $1 ORDER BY created_at ASC';
+      const res = await this.client.query(query, [conversationId]);
+      return res.rows;
+    } catch (err) {
+      console.error("[SupabaseManager] Failed to fetch agent tasks:", err.message);
+      return [];
+    }
+  }
+
+  async updateConversationTitle(conversationId, title) {
+    if (!this.enabled) return;
+    try {
+      const query = 'UPDATE conversations SET title = $1 WHERE id = $2';
+      await this.client.query(query, [title, conversationId]);
+    } catch (err) {
+      console.error("[SupabaseManager] Failed to update conversation title:", err.message);
+    }
+  }
+
+  async searchMessages(keyword) {
+    if (!this.enabled) return [];
+    try {
+      const query = "SELECT * FROM messages WHERE content ILIKE $1 ORDER BY created_at DESC LIMIT 20";
+      const res = await this.client.query(query, [`%${keyword}%`]);
+      return res.rows;
+    } catch (err) {
+      console.error("[SupabaseManager] Failed to search messages:", err.message);
+      return [];
+    }
   }
 }
 

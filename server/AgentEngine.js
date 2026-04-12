@@ -3,6 +3,7 @@ const PERSONAS = require('./Personas');
 const fs = require('fs-extra');
 const path = require('path');
 const { exec } = require('child_process');
+const SupabaseManager = require('./SupabaseManager');
 
 class AgentEngine {
   constructor(workspaceDir, personaKey = 'CYAN', providerOverride = null) {
@@ -112,6 +113,20 @@ class AgentEngine {
             required: ["command"]
           }
         }
+      },
+      {
+        type: "function",
+        function: {
+          name: "query_memory",
+          description: "Searches the persistent database for past chat history based on a keyword. Useful for recalling previous decisions, code snippets, or user preferences.",
+          parameters: {
+            type: "object",
+            properties: {
+              keyword: { type: "string", description: "The term or phrase to search for in history." }
+            },
+            required: ["keyword"]
+          }
+        }
       }
     ];
   }
@@ -141,6 +156,11 @@ class AgentEngine {
               resolve(stdout || stderr || (err ? err.message : "Command executed."));
             });
           });
+        
+        case 'query_memory':
+          const memories = await SupabaseManager.searchMessages(args.keyword);
+          if (memories.length === 0) return "No matching memories found.";
+          return memories.map(m => `[${new Date(m.created_at).toLocaleDateString()}] ${m.role}: ${m.content}`).join('\n---\n');
         
         default:
           return "Unknown tool.";

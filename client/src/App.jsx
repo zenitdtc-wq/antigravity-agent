@@ -12,7 +12,12 @@ import {
   Settings,
   Cpu,
   Layers,
-  ChevronRight
+  ChevronRight,
+  History,
+  PlusCircle,
+  Clock,
+  Trash2,
+  CheckCircle2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -29,11 +34,17 @@ const App = () => {
   const [files, setFiles] = useState([]);
   const [currentFile, setCurrentFile] = useState('');
   const [terminalOutput, setTerminalOutput] = useState('');
+  const [conversations, setConversations] = useState([]);
+  const [activeConvId, setActiveConvId] = useState(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [agentTasks, setAgentTasks] = useState([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   const chatEndRef = useRef(null);
 
   useEffect(() => {
     fetchFiles();
+    fetchConversations();
   }, []);
 
   useEffect(() => {
@@ -51,6 +62,49 @@ const App = () => {
       }
     } catch (err) {
       console.error('Error fetching files:', err);
+    }
+  };
+
+  const fetchConversations = async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/conversations`);
+      setConversations(res.data);
+      if (res.data.length > 0 && !activeConvId) {
+        loadConversation(res.data[0].id);
+      }
+    } catch (err) {
+      console.error('Error fetching conversations:', err);
+    }
+  };
+
+  const loadConversation = async (id) => {
+    setIsLoadingHistory(true);
+    try {
+      const res = await axios.get(`${API_BASE}/conversations/${id}`);
+      setActiveConvId(id);
+      setMessages(res.data.messages.map(m => ({
+        role: m.role,
+        text: m.content,
+        persona: m.persona,
+        timestamp: m.created_at
+      })));
+      setAgentTasks(res.data.tasks);
+      await axios.post(`${API_BASE}/conversations/active`, { id });
+    } catch (err) {
+      console.error('Error loading conversation:', err);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  const startNewConversation = async () => {
+    try {
+      // In a real app, the backend handles creation via /api/chat if no ID exists,
+      // but we'll force a refresh or just clear state.
+      // For this MVP, we'll just reload the page or clear local state and let the backend create a new one on the next message.
+      window.location.reload(); 
+    } catch (err) {
+      console.error('Error starting new conversation:', err);
     }
   };
 
@@ -185,10 +239,73 @@ const App = () => {
         </div>
       </header>
 
-      <aside className="sidebar">
+      <aside className={`sidebar history-sidebar ${!isSidebarOpen ? 'collapsed' : ''}`}>
+        <div style={{ padding: '20px 15px', borderBottom: '1px solid hsla(var(--text-main), 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <History size={18} color="hsl(var(--accent-primary))" />
+            <span style={{ fontSize: '0.85rem', fontWeight: 700, letterSpacing: '0.05em' }}>HISTORY</span>
+          </div>
+          <PlusCircle 
+            size={18} 
+            className="clickable" 
+            style={{ opacity: 0.6 }} 
+            onClick={startNewConversation}
+          />
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
+          {conversations.map(conv => (
+            <motion.div
+              whileHover={{ x: 4, background: 'hsla(var(--text-main), 0.05)' }}
+              key={conv.id}
+              onClick={() => loadConversation(conv.id)}
+              className={activeConvId === conv.id ? 'active-history-item' : 'history-item'}
+              style={{ 
+                padding: '10px 12px', 
+                borderRadius: '8px', 
+                fontSize: '0.8rem', 
+                cursor: 'pointer', 
+                marginBottom: '4px',
+                border: activeConvId === conv.id ? '1px solid hsla(var(--accent-primary), 0.3)' : '1px solid transparent',
+                background: activeConvId === conv.id ? 'hsla(var(--accent-primary), 0.05)' : 'transparent'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                <MessageSquare size={12} opacity={activeConvId === conv.id ? 1 : 0.4} />
+                <span style={{ 
+                  fontWeight: activeConvId === conv.id ? 700 : 400,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  opacity: activeConvId === conv.id ? 1 : 0.7
+                }}>
+                  {conv.title || 'Untitled Session'}
+                </span>
+              </div>
+              <div style={{ fontSize: '0.65rem', opacity: 0.4, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Clock size={10} /> {new Date(conv.created_at).toLocaleDateString()}
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        <div style={{ padding: '15px', borderTop: '1px solid hsla(var(--text-main), 0.1)' }}>
+          <div className="glass" style={{ padding: '12px', fontSize: '0.75rem' }}>
+             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'hsl(var(--accent-secondary))', marginBottom: '6px' }}>
+                <Monitor size={14} />
+                <strong>WORKSPACE</strong>
+             </div>
+             <div style={{ opacity: 0.6, fontSize: '0.7rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {files.length} Files Tracked
+             </div>
+          </div>
+        </div>
+      </aside>
+
+      <aside className="sidebar file-sidebar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '15px 12px', opacity: 0.9 }}>
           <FolderTree size={18} color="hsl(var(--accent-primary))" />
-          <span style={{ fontSize: '0.85rem', fontWeight: 700, letterSpacing: '0.05em' }}>WORKSPACE</span>
+          <span style={{ fontSize: '0.85rem', fontWeight: 700, letterSpacing: '0.05em' }}>FILES</span>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
           {files.map(file => (
@@ -205,17 +322,16 @@ const App = () => {
           ))}
         </div>
         <div style={{ padding: '12px' }}>
-           <div className="glass" style={{ padding: '16px', fontSize: '0.8rem', border: '1px solid hsla(var(--accent-primary), 0.2)' }}>
-              <div style={{ display: 'flex', gap: '8px', color: 'hsl(var(--accent-primary))', marginBottom: '8px', alignItems: 'center' }}>
-                <div className="pulse-dot" style={{ width: '8px', height: '8px', background: 'hsl(var(--accent-primary))', borderRadius: '50%', boxShadow: '0 0 12px hsl(var(--accent-primary))' }} />
-                <strong style={{ letterSpacing: '0.02em' }}>AGENT STATUS</strong>
-              </div>
-              <div style={{ opacity: 0.8, fontSize: '0.75rem' }}>
-                System Online. <br/>
-                Orchestrator: <strong>Cyan</strong> <br/>
-                Primary: <strong>Sonnet 3.5</strong>
-              </div>
-           </div>
+            <div className="glass" style={{ padding: '16px', fontSize: '0.8rem', border: '1px solid hsla(var(--accent-primary), 0.2)' }}>
+               <div style={{ display: 'flex', gap: '8px', color: 'hsl(var(--accent-primary))', marginBottom: '8px', alignItems: 'center' }}>
+                 <div className="pulse-dot" style={{ width: '8px', height: '8px', background: 'hsl(var(--accent-primary))', borderRadius: '50%', boxShadow: '0 0 12px hsl(var(--accent-primary))' }} />
+                 <strong style={{ letterSpacing: '0.02em' }}>AGENT STATUS</strong>
+               </div>
+               <div style={{ opacity: 0.8, fontSize: '0.75rem' }}>
+                 {isLoadingHistory ? 'Reloading Memory...' : 'System Online'} <br/>
+                 Tasks: <strong>{agentTasks.filter(t => t.status === 'completed').length} / {agentTasks.length}</strong>
+               </div>
+            </div>
         </div>
       </aside>
 

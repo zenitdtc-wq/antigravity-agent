@@ -11,8 +11,9 @@ class DockerAgentEngine {
     onUpdate({ type: 'thinking', content: "Gordon (Docker AI) is analyzing your container stack..." });
     
     // Use 'docker ai' to get a response from Gordon
-    // We wrap the prompt to ensure Gordon understands it's coming from an orchestrator
-    const prompt = `[CONTEXT: OnePigeon.App] ${userMessage}`;
+    // We inject system context so Gordon knows exactly what's running
+    const context = await this.getSystemContext();
+    const prompt = `[SYSTEM CONTEXT: ${context}] [TASK: ${userMessage}]`;
     
     return new Promise((resolve) => {
       // Execute docker ai in the workspace
@@ -31,6 +32,15 @@ class DockerAgentEngine {
   async runDockerAgentTeam(yamlPath, onUpdate) {
      onUpdate({ type: 'thinking', content: `Starting Docker Agent Team: ${path.basename(yamlPath)}` });
      // ... implementation for 'docker agent run'
+  }
+
+  async getSystemContext() {
+    return new Promise((resolve) => {
+      exec('docker ps --format "{{.Names}}: {{.Status}}" && docker images --format "{{.Repository}}:{{.Tag}}"', (err, stdout) => {
+        if (err) resolve("Limited context: Docker might not be running.");
+        else resolve(stdout.split('\n').filter(Boolean).join(', '));
+      });
+    });
   }
 }
 
