@@ -1,90 +1,28 @@
-# Antigravity Multi-Agent Orchestrator 🛸
+# Antigravity Orchestrator (FastAPI Edition)
 
-**Antigravity** is a high-performance, persona-based AI orchestration system. It is designed to handle the entire lifecycle of web application development—from architecture and backend logic to premium UI/UX and containerized deployment.
+A completely localized, middleware-tuned, Python 3.11 multi-agent development orchestrator.
 
-![Antigravity UI](https://via.placeholder.com/800x400?text=Antigravity+Industrial+Dashboard)
+## Quick-Start
 
-## 🌌 Core Pillars
-
-### 🧩 Specialized Intelligence
-Antigravity utilizes a fleet of specialized AI agents, coordinated by the **Cyan (Architect)** persona:
-- **Cyan**: Lead Coordinator & Architect.
-- **Coop**: Backend & logic specialist (Node.js/Prisma).
-- **Nest**: UI/UX Master (React/CSS-HSL).
-- **Gordon**: Official Docker AI Specialist.
-- **Hawk**: QA & skeptical testing engineer.
-- **Loft**: DevOps & Infrastructure.
-- **Piper**: Brand & Content lead.
-
-### 💎 Premium Aesthetics
-Built with a "Glassmorphism 2.0" design system using React, Vite, and Framer Motion for a state-of-the-art interactive experience.
-
-### 🛡️ Industrial Robustness
-- **Technical Retry Logic**: Automated worker task retries on engine failures.
-- **Persistence**: Full conversation and task tracking powered by Supabase.
-- **Sentinel**: Real-time intelligence provider health monitoring (OpenRouter/Groq).
-
----
-
-## 🏗️ Architecture
-
-```mermaid
-graph TD
-    User((User)) -->|Instruction| Cyan[Cyan Coordinator]
-    Cyan -->|Delegates| Spawns{Worker Dispatch}
-    Spawns --> Coop[Coop: Backend]
-    Spawns --> Nest[Nest: Frontend]
-    Spawns --> Gordon[Gordon: Docker]
-    Spawns --> Hawk[Hawk: QA]
-    Coop & Nest & Gordon & Hawk -->|Results| Cyan
-    Cyan -->|Synthesizes| User
-    
-    subgraph Infrastructure
-        Supabase[(Supabase DB)]
-        Sentinel[Sentinel Health]
-    end
-    
-    Spawns -.-> Supabase
-    Cyan -.-> Sentinel
-```
-
----
-
-## 🚀 Getting Started
-
-### 1. Prerequisites
-- Node.js (v18+)
-- Local Docker Environment (for Gordon tools)
-- Supabase account (PostgreSQL)
-
-### 2. Installation
+1. Update `.env` with your API keys.
+2. Spin up the cluster:
 ```bash
-git clone https://github.com/zenitdtc-wq/antigravity-agent.git
-cd antigravity-agent
-
-# Install dependencies
-cd client && npm install
-cd ../server && npm install
+docker compose up -d
+```
+3. Local development without Docker: 
+```bash
+pip install -r backend/requirements.txt
+uvicorn backend.main:app --reload
 ```
 
-### 3. Configuration
-Create a `.env` file in the root directory:
-```env
-OPENROUTER_API_KEY=your_key
-GROQ_API_KEY=your_key
-SUPABASE_PASSWORD=your_database_password
-```
+## Features
+- **Local Ollama -> Claude Fallback**: Queries `qwen2.5:9b` natively over local Docker. On failure or timeout, automatically upgrades to `claude-3-opus-20240229` via Anthropic's API endpoint.
+- **Docker Manager Integration**: Automatically lists, manages, and captures container logs via the real `docker-sdk-python`.
+- **Supabase Persistence**: Integrates task tracking directly via `supabase-py` native.
+- **Redis Security Layers**: Tracks request TTL scaling, blocks injection prompts, limits endpoints to 100 req/min.
 
-### 4. Database Setup
-Run the SQL found in `supabase_schema.sql` in your Supabase SQL Editor.
+## Grafana & Prometheus
+Metrics automatically publish to `http://localhost:8000/metrics`. Configure your bundled Grafana (`localhost:3001`) to ingest Prometheus data (`localhost:9090`) to view cache hits, endpoint execution times, and more.
 
-### 5. Launch
-- **Backend API**: `cd server && node index.js`
-- **Frontend UI**: `cd client && npm run dev`
-
----
-
-## 📜 License
-This project is licensed under the ISC License.
-
-Developed with 🤍 by the **Antigravity AI Team**.
+## Security Warning
+❗ Always keep your `.env` secured. If your API keys ever leak in source control, immediately rotate them via Anthropic / Supabase consoles.
