@@ -19,7 +19,7 @@ async def setup_middlewares(request: Request, call_next):
     start_time = time.time()
     
     # Check Auth
-    if request.url.path not in ["/metrics", "/v1/health", "/docs", "/openapi.json"]:
+    if request.url.path not in ["/", "/metrics", "/v1/health", "/docs", "/openapi.json"]:
         api_key = request.headers.get("X-API-Key")
         if api_key != os.getenv("X_API_KEY", "dev"):
             return JSONResponse(status_code=401, content={"detail": "Unauthorized: Invalid X-API-Key"})
@@ -40,6 +40,15 @@ app.mount("/metrics", metrics_app)
 llm_adapter = LLMAdapter()
 docker_client = DockerManager()
 supabase_client = SupabaseManager()
+
+@app.get("/")
+def read_root():
+    return {
+        "message": "Welcome to Antigravity Orchestrator (FastAPI)",
+        "docs": "/docs",
+        "health": "/v1/health",
+        "status": "online"
+    }
 
 @app.get("/v1/health")
 def health():
