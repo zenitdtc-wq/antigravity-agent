@@ -18,7 +18,13 @@ class ChatRequest(BaseModel):
 
 class LLMAdapter:
     def __init__(self):
-        self.redis_client = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"), decode_responses=True)
+        try:
+            self.redis_client = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"), decode_responses=True)
+            self.redis_active = True
+        except Exception:
+            self.redis_client = None
+            self.redis_active = False
+            
         self.ollama_url = f"{os.getenv('OLLAMA_HOST', 'http://localhost:11434')}/api/chat"
         self.fallback_key = os.getenv("OPENROUTER_API_KEY")
 
@@ -26,12 +32,17 @@ class LLMAdapter:
         self.malicious_pattern = re.compile(r"(ignore previous instructions|/etc/passwd|system prompt)", re.IGNORECASE)
 
     async def check_rate_limit(self, api_key: str):
-        key = f"rl:{api_key}"
-        requests = await self.redis_client.incr(key)
-        if requests == 1:
-            await self.redis_client.expire(key, 60) # 60 seconds window
-        if requests > 100:
-            raise HTTPException(status_code=429, detail="Rate limit exceeded. 100 req/min.")
+        if not self.redis_active:
+            return # Skip rate limit checks in environments without Redis
+        try:
+            key = f"rl:{api_key}"
+            requests = await self.redis_client.incr(key)
+            if requests == 1:
+                await self.redis_client.expire(key, 60) # 60 seconds window
+            if requests > 100:
+                raise HTTPException(status_code=429, detail="Rate limit exceeded. 100 req/min.")
+        except Exception:
+            self.redis_active = False # Disable for future calls if it fails during execution
 
     def check_injection(self, messages: List[Message]):
         for m in messages:
@@ -73,12 +84,18 @@ class LLMAdapter:
         self.check_injection(request.messages)
 
         # Cache check
-        messages_str = json.dumps([m.model_dump() for m in request.messages])
-        cache_hash = hashlib.sha256(messages_str.encode()).hexdigest()
-        cache_key = f"cache:{cache_hash}"
-        cached = await self.redis_client.get(cache_key)
-        if cached:
-            return json.loads(cached)
+        response = None
+        cache_key = None
+        if self.redis_active:
+            try:
+                messages_str = json.dumps([m.model_dump() for m in request.messages])
+                cache_hash = hashlib.sha256(messages_str.encode()).hexdigest()
+                cache_key = f"cache:{cache_hash}"
+                cached = await self.redis_client.get(cache_key)
+                if cached:
+                    return json.loads(cached)
+            except Exception:
+                self.redis_active = False
 
         try:
             response = await self._call_ollama(request.messages)
@@ -90,5 +107,9 @@ class LLMAdapter:
                 raise HTTPException(status_code=502, detail=f"All providers failed. Fallback Error: {fallback_e}")
 
         # Cache for 5 mins (300 secs)
-        await self.redis_client.set(cache_key, json.dumps(response), ex=300)
+        if self.redis_active and cache_key:
+            try:
+                await self.redis_client.set(cache_key, json.dumps(response), ex=300)
+            except Exception:
+                self.redis_active = False
         return response

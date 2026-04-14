@@ -3,11 +3,18 @@ import time
 from fastapi import FastAPI, Request, HTTPException, Depends, Header
 from fastapi.responses import JSONResponse
 from prometheus_client import make_asgi_app, Counter, Histogram
-from backend.docker_client import DockerManager
-from backend.supabase_client import SupabaseManager, Task
-from backend.llm_adapter import LLMAdapter, ChatRequest
+
+try:
+    from backend.docker_client import DockerManager
+    from backend.supabase_client import SupabaseManager, Task
+    from backend.llm_adapter import LLMAdapter, ChatRequest
+except (ImportError, ModuleNotFoundError):
+    from docker_client import DockerManager
+    from supabase_client import SupabaseManager, Task
+    from llm_adapter import LLMAdapter, ChatRequest
 
 app = FastAPI(title="Antigravity Orchestrator (FastAPI)", version="1.0.0")
+print("Startup: Antigravity components initializing...")
 
 # Metrics
 REQUEST_COUNT = Counter("http_request_total", "Total HTTP Requests", ["method", "endpoint", "http_status"])
